@@ -13,10 +13,44 @@ RY = -1.291
 RZ = -0.0221
 
 # x is vertical relative to the robot arm, decreasing x moves the pen up. decreasing y moves the pen left
-bound_x1 = -0.156
-bound_x2 = -0.443
+bound_x1 = -0.256
+bound_x2 = -0.448
 bound_y1 = 0.271
 bound_y2 = -0.295
+
+def scale_and_translate_preserve_aspect(points, dest_top_left, dest_bottom_right):
+    """Map original points into a destination rectangle, preserving aspect ratio"""
+    # Get bounds of original
+    xs = [x for x, y in points]
+    ys = [y for x, y in points]
+    xmin, xmax = min(xs), max(xs)
+    ymin, ymax = min(ys), max(ys)
+
+    shape_width = xmax - xmin
+    shape_height = ymax - ymin
+
+    x0, y0 = dest_top_left
+    x1, y1 = dest_bottom_right
+    box_width = x1 - x0
+    box_height = y1 - y0
+
+    # Uniform scale to fit in destination
+    scale = min(box_width / shape_width, box_height / shape_height)
+
+    # Center offset
+    offset_x = x0 + (box_width - shape_width * scale) / 2
+    offset_y = y0 + (box_height - shape_height * scale) / 2
+
+    # Map points
+    mapped = [
+        (
+            offset_x + (x - xmin) * scale,
+            offset_y + (y - ymin) * scale
+        )
+        for x, y in points
+    ]
+
+    return mapped
 
 """
 Pose: p[x, y, z, rx, ry, rz]
@@ -59,16 +93,18 @@ def send_ur_script_command(x : float, y : float, z : float, rx : float, ry : flo
 
 def draw_bounding_box():
     # Move in a square shape and draw
-    send_ur_script_command(f"movel(p[-0.156, 0.271, {Z}, {RX}, {RY}, {RZ}])")
+    send_ur_script_command(bound_x1, bound_y1, Z, RX, RY, RZ, 'l', 'p')
 
     # Move in a square shape and draw
-    send_ur_script_command(f"movel(p[-0.443, 0.271, {Z}, {RX}, {RY}, {RZ}])")
+    send_ur_script_command(bound_x2, bound_y1, Z, RX, RY, RZ, 'l', 'p')
 
     # Move in a square shape and draw
-    send_ur_script_command(f"movel(p[-0.443, -0.295, {Z}, {RX}, {RY}, {RZ}])")
+    send_ur_script_command(bound_x2, bound_y2, Z, RX, RY, RZ, 'l', 'p')
 
     # Move to first point
-    send_ur_script_command(f"movel(p[-0.156, -0.295, {Z}, {RX}, {RY}, {RZ}])")
+    send_ur_script_command(bound_x1, bound_y2, Z, RX, RY, RZ, 'l', 'p')
+
+    send_ur_script_command(bound_x1, bound_y1, Z, RX, RY, RZ, 'l', 'p')
 
 def get_points_from_file(file_path : str):
     # This gets a list of (x,y) points from a target file 
@@ -76,9 +112,20 @@ def get_points_from_file(file_path : str):
     # the Z, RX, RY, and RZ values (it assumes you want to move the pen across the canvas).
     # It also sets the command to type pose and movel
     
+    # Pull raw points
     with open(file_path, 'r') as f:
         points = [[float(point.strip()) for point in line.split(',')] 
-                + [Z, RX, RY, RZ, 'l', 'p'] for line in f]
+               for line in f]
+
+    # Transform
+    points = scale_and_translate_preserve_aspect(points, (bound_x2, bound_y2), (bound_x1, bound_y1))
+
+    # Pad with necessary data
+    points = [
+        [x, y, Z, RX, RY, RZ, 'l', 'p']
+        for (x, y) in points
+    ]
+
     return points
 
 print(f"Putting robot into default configuration")
@@ -96,16 +143,10 @@ print(f"Begin drawing")
 
 for point in points: send_ur_script_command(*point)
 
+#draw_bounding_box()
+
 # return home
 send_ur_script_command(0.0, -1.04, 1.04, -1.57, -1.57, 0.0, 'j', '')
 
 
 # ==========================
-
-"""
-TODO:
-    - Convert points into a pose so we can feed it to movel
-    - Scale arbitrary points into our canvas space (linear scaling?)
-    - Modify starting point to be first point on drawing (dynamic starting point)
-    - Feed commands in a loop to hit all points on drawing
-"""
