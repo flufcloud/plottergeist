@@ -79,14 +79,20 @@ def send_ur_script_command(x : float, y : float, z : float, rx : float, ry : flo
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             print(f"Trying to connect to socket")
             s.connect((robotIP, PRIMARY_PORT))
-
-            command = f'move{type}({pose}[{x}, {y}, {z}, {rx}, {ry}, {rz}])\n'
+            
+            if type == 'l':
+                a = 1.2
+                v = 0.4
+            else:
+                a = 1.4
+                v = 1.05
+            command = f'move{type}({pose}[{x}, {y}, {z}, {rx}, {ry}, {rz}], a={a}, v={v})\n'
             print(command)
 
             print(f"Connected to socket, sending command")
             s.sendall(command.encode('utf-8'))
 
-            time.sleep(7)
+            time.sleep(3)
 
     except Exception as e:
         print(f"An error occured: {e}")     
@@ -134,14 +140,20 @@ print(f"Putting robot into default configuration")
 # DO NOT EDIT THESE COMMANDS
 
 send_ur_script_command(0.0, -1.57, 0.0, -1.57, 0.0, 0.0, 'j', '')
-send_ur_script_command(0.0, -1.04, 1.04, -1.57, -1.57, 0.0, 'j', '')
+
 
 # ==========================
 
-points = get_points_from_file('points.txt')
+points = get_points_from_file('creature_points.txt')
 print(f"Begin drawing")
 
-for point in points: send_ur_script_command(*point)
+len = len(points)
+for i in range(len):
+    if i % 5 == 0:
+        print("Lifting pen")
+        send_ur_script_command(0.0, -1.04, 1.04, -1.57, -1.57, 0.0, 'j', '')
+    print(i) 
+    send_ur_script_command(*points[i])
 
 #draw_bounding_box()
 
