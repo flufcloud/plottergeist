@@ -52,6 +52,10 @@ plt.grid(True)
 plt.axis('equal')
 plt.savefig('points.png')
 
+super_points = []
 points = [point[0] for point in points]
-df = pd.DataFrame(points)
+for point in points:
+    for p in point:
+        super_points.append(p)
+df = pd.DataFrame(super_points)
 df.to_csv("creature_points.txt", index=False)
